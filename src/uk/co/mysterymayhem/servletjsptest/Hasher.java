@@ -1,10 +1,9 @@
 package uk.co.mysterymayhem.servletjsptest;
 
-import uk.co.mysterymayhem.servletjsptest.TestServlet.ParseException;
+import uk.co.mysterymayhem.servletjsptest.DataParser.ParseException;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 
 /**
  * Created by Mysteryem on 24/04/2017.
