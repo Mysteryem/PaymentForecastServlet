@@ -10,6 +10,9 @@ import java.security.NoSuchAlgorithmException;
  */
 public class Hasher {
     private static final MessageDigest SHA_256;
+    private static final int HASH_STRING_LENGTH = 64;
+    private static final int HASH_BYTE_LENGTH = 32;
+
     static {
         try {
             SHA_256 = MessageDigest.getInstance("SHA-256");
@@ -24,31 +27,28 @@ public class Hasher {
         return SHA_256.digest((merchantPubKey + payerPubKey + debitPermissionId + dueEpoc + amount).getBytes());
     }
 
-    private static final int HASH_STRING_LENGTH = 64;
-    private static final int HASH_BYTE_LENGTH = 32;
-
     // Each pair of hex characters is one byte
     public static byte[] fromPreComputedString(String precomputedHash) throws ParseException {
         if (precomputedHash.length() != HASH_STRING_LENGTH) {
             //throw new ParseException("Invalid hash length, got " + precomputedHash.length() + ", expected " + HASH_STRING_LENGTH);
         }
-            char[] chars = precomputedHash.toCharArray();
-            byte[] bytes = new byte[chars.length / 2];
-            for (int i = 0; i < chars.length; i += 2) {
-                String twoCharacterString = new String(chars, i, 2);
-                // Parse as hex
-                // Can't use Byte.parseByte because Java bytes are signed (max value +127, min value -128) and parseByte internally
-                // uses Integer.parseInt. In the case of 0xFF, parseByte() -> 255 which is greater than 127 -> NumberFormatException.
-                // Thus, I'm using Integer.parseInt manually
-                try {
-                    byte parsedByte = (byte) (Integer.parseInt(twoCharacterString, 16));
-                    // Remember the byte array is half the length
-                    bytes[i / 2] = parsedByte;
-                } catch (NumberFormatException e) {
-                    throw new ParseException("Failed to parse \"" + twoCharacterString + "\" as a hex byte in " + precomputedHash);
-                }
+        char[] chars = precomputedHash.toCharArray();
+        byte[] bytes = new byte[chars.length / 2];
+        for (int i = 0; i < chars.length; i += 2) {
+            String twoCharacterString = new String(chars, i, 2);
+            // Parse as hex
+            // Can't use Byte.parseByte because Java bytes are signed (max value +127, min value -128) and parseByte internally
+            // uses Integer.parseInt. In the case of 0xFF, parseByte() -> 255 which is greater than 127 -> NumberFormatException.
+            // Thus, I'm using Integer.parseInt manually
+            try {
+                byte parsedByte = (byte) (Integer.parseInt(twoCharacterString, 16));
+                // Remember the byte array is half the length
+                bytes[i / 2] = parsedByte;
+            } catch (NumberFormatException e) {
+                throw new ParseException("Failed to parse \"" + twoCharacterString + "\" as a hex byte in " + precomputedHash);
             }
-            return bytes;
+        }
+        return bytes;
     }
 
     public static String bytesToNiceString(byte[] bytes) {

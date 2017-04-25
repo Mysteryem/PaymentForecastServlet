@@ -3,7 +3,10 @@ package uk.co.mysterymayhem.servletjsptest;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.*;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
+import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * Created by Mysteryem on 24/04/2017.
@@ -16,11 +19,6 @@ public class SimpleDate {
     private final int month;
     private final int dayOfMonth;
 
-    private static Calendar setAndGetCalendarFromInstant(Instant instant) {
-        UTC_CALENDAR.setTimeInMillis(instant.toEpochMilli());
-        return UTC_CALENDAR;
-    }
-
     public SimpleDate(Instant instant) {
         this(setAndGetCalendarFromInstant(instant));
     }
@@ -29,6 +27,11 @@ public class SimpleDate {
         this.year = date.get(Calendar.YEAR);
         this.month = date.get(Calendar.MONTH);
         this.dayOfMonth = date.get(Calendar.DAY_OF_MONTH);
+    }
+
+    private static Calendar setAndGetCalendarFromInstant(Instant instant) {
+        UTC_CALENDAR.setTimeInMillis(instant.toEpochMilli());
+        return UTC_CALENDAR;
     }
 
     @Override
@@ -45,7 +48,7 @@ public class SimpleDate {
             return true;
         }
         if (obj instanceof SimpleDate) {
-            SimpleDate other = (SimpleDate)obj;
+            SimpleDate other = (SimpleDate) obj;
             return this.year == other.year && this.month == other.month && this.dayOfMonth == other.dayOfMonth;
         }
         return false;
