@@ -1,9 +1,9 @@
 package uk.co.mysterymayhem.servletjsptest;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.LineNumberReader;
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -27,7 +27,7 @@ public class DataParser {
 
     // Replace with TIntObjectHashMap from Trove collections to maybe increase performance? (int keys instead of Integer keys)
     // Used in validation of merchant related fields
-    private static final HashMap<Integer, MerchantData> MERCHANT_ID_TO_DATA = new HashMap<>();
+    static final HashMap<Integer, MerchantData> MERCHANT_ID_TO_DATA = new HashMap<>();
     // Used in validation of payer related fields
     private static final HashMap<Integer, String> PAYER_ID_TO_PUB_KEY = new HashMap<>();
     // Not very useful for multi-threading, a blocking queue of Calendar objects might work
@@ -42,9 +42,11 @@ public class DataParser {
     private static final int MINUTES = 1;
     private static final int SECONDS = 2;
     private static final int PUBLIC_KEY_LENGTH = 20;
+    // Main results map, Date -> Map<MerchantID, Amount in £>
+    static final HashMap<SimpleDate, HashMap<Integer, BigDecimal>> DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP = new HashMap<>();
 
     public static void main(String[] args) {
-        try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File("payment-forecast-data.csv")))) {
+        try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File(args[0])))) {
             // First line contains descriptive headers so is skipped
             lineNumberReader.readLine();
 
@@ -56,6 +58,9 @@ public class DataParser {
                     System.out.println("Failed to parse line " + lineNumberReader.getLineNumber() + ": " + parseException.getMessage());
                 }
             }
+        } catch (FileNotFoundException e) {
+            System.err.println("Current path: " + Paths.get("").toAbsolutePath().toString());
+            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -67,28 +72,73 @@ public class DataParser {
             throw new ParseException("Invalid record length, got " + split.length + ", expected " + EXPECTED_NUM_FIELDS + ". Full line:\n" + line);
         }
 
-        //TODO: More validation, e.g.:
-        // Amount exists and is a valid positive number
-        // Currency is GBP (assume other currencies are unsupported at this time)
-        // Debit permission ID is a parsable number and unique
-        validateHash(split);
+        // Parsing/validation order is mostly arbitrary, more expensive operations you would want last
 
+        // Both types of date are parsable, received date is before due date and due utc and due epoch dates match
         SimpleDate paymentDate = parseTimeData(split[RECIEVED_UTC], split[DUE_UTC], split[DUE_EPOCH]);
+
+        // Each merchant id is a number and has a single corresponding merchant name and merchant public key
         MerchantData merchantData = parseMerchantData(split[MERCHANT_ID], split[MERCHANT_NAME], split[MERCHANT_PUB_KEY]);
+
+        // Each payer id is a number and has a single corresponding payer public key
         parsePayerData(split[PAYER_ID], split[PAYER_PUB_KEY]);
+
+        // Debit permission ID is a parsable number
         parseDebitPermissionID(split[DEBIT_PERMISSION_ID]);
 
+        BigDecimal paymentAmount = parsePaymentAmount(split[CURRENCY], split[AMOUNT]);
+
+        // Validates (and parses) the SHA256 hash. This is done last as missing data would cause a hash mismatch, but the
+        // other checks would provide a more useful output
+        validateHash(split);
+
+        HashMap<Integer, BigDecimal> idToAmount = DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP.get(paymentDate);
+        if (idToAmount == null) {
+            idToAmount = new HashMap<>();
+            DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP.put(paymentDate, idToAmount);
+        }
+
+        Integer merchantID = merchantData.id;
+        BigDecimal amount = idToAmount.get(merchantID);
+        if (amount == null) {
+            idToAmount.put(merchantID, paymentAmount);
+        } else {
+            idToAmount.put(merchantID, amount.add(paymentAmount));
+        }
+    }
+
+    private static BigDecimal parsePaymentAmount(String currencyType, String amount) throws ParseException {
+        if (!currencyType.equals("GBP")) {
+            throw new ParseException("Unrecognised currency type \"" + currencyType + "\"");
+        }
+        int pointIndex = amount.indexOf('.');
+        // To extend functionality, a Map<String, Function<String, BigDecimal> could be used, where there is a function for
+        // converting amount to BigDecimal for each recognised currency type
+        try {
+            // If a decimal point is found
+            if (pointIndex != -1) {
+                // Need 2 digits after the decimal point to be valid
+                if (pointIndex != amount.length() - 3) {
+                    throw new ParseException(String.format("Invalid amount (%s) for currency type %s", amount, currencyType));
+                }
+            }
+            return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP);
+        } catch (NumberFormatException e) {
+            throw new ParseException(e);
+        }
     }
 
 
-    // TODO: Replace with a Trove collection
-    private static final HashSet<Integer> debitPermissionIDs = new HashSet<>();
-
-    private static void parseDebitPermissionID(String permissionIDString) throws ParseException{
+    /**
+     * Uniqueness is not ensured. Only check is that the permissionID is a valid number
+     *
+     * @param permissionIDString
+     * @throws ParseException
+     */
+    private static void parseDebitPermissionID(String permissionIDString) throws ParseException {
         try {
-            if (!debitPermissionIDs.add(Integer.parseInt(permissionIDString))) {
-                throw new ParseException(String.format("Debit permission ID \"%s\" is not unique", permissionIDString));
-            }
+            //noinspection ResultOfMethodCallIgnored
+            Integer.parseInt(permissionIDString);
         } catch (NumberFormatException e) {
             throw new ParseException(e);
         }
@@ -96,6 +146,7 @@ public class DataParser {
 
     /**
      * Payer data is currently unused aside from checking data consistency, so currently, nothing is returned
+     *
      * @param payerIDString
      * @param payerPubKey
      * @throws ParseException
@@ -106,8 +157,7 @@ public class DataParser {
             String retrievedPubKey = PAYER_ID_TO_PUB_KEY.get(payerID);
             if (retrievedPubKey == null) {
                 PAYER_ID_TO_PUB_KEY.put(payerID, payerPubKey);
-            }
-            else if (!retrievedPubKey.equals(payerPubKey)) {
+            } else if (!retrievedPubKey.equals(payerPubKey)) {
                 throw new ParseException(String.format("Parsed payer public key for ID %d (%s) does not match existing payer public key (%s)",
                         payerID, payerPubKey, retrievedPubKey));
             }

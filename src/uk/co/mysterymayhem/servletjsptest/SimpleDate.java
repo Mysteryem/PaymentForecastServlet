@@ -11,7 +11,7 @@ import java.util.TimeZone;
 /**
  * Created by Mysteryem on 24/04/2017.
  */
-public class SimpleDate {
+public class SimpleDate implements Comparable<SimpleDate> {
     private static final Calendar UTC_CALENDAR = GregorianCalendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ENGLISH);
 
     private final int year;
@@ -34,6 +34,21 @@ public class SimpleDate {
         return UTC_CALENDAR;
     }
 
+    public String prettyToString() {
+        UTC_CALENDAR.clear();
+        UTC_CALENDAR.set(this.year, this.month, this.dayOfMonth);
+        StringBuilder builder = new StringBuilder();
+
+        builder
+                .append(UTC_CALENDAR.get(Calendar.DAY_OF_MONTH))
+                .append(" ")
+                .append(UTC_CALENDAR.getDisplayName(Calendar.MONTH, Calendar.SHORT, Locale.ENGLISH))
+                .append(" ")
+                .append(UTC_CALENDAR.get(Calendar.YEAR));
+
+        return builder.toString();
+    }
+
     @Override
     public int hashCode() {
         int hashCode = 31 + this.year;
@@ -52,5 +67,34 @@ public class SimpleDate {
             return this.year == other.year && this.month == other.month && this.dayOfMonth == other.dayOfMonth;
         }
         return false;
+    }
+
+    @Override
+    public int compareTo(SimpleDate o) {
+        if (this.year > o.year) {
+            return 1;
+        }
+        else if (this.year < o.year) {
+            return -1;
+        }
+        else {
+            if (this.month > o.month) {
+                return 1;
+            }
+            else if (this.month < o.month) {
+                return -1;
+            }
+            else {
+                if (this.dayOfMonth > o.dayOfMonth) {
+                    return 1;
+                }
+                else if (this.dayOfMonth < o.dayOfMonth) {
+                    return -1;
+                }
+                else {
+                    return 0;
+                }
+            }
+        }
     }
 }

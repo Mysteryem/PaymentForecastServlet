@@ -8,6 +8,11 @@ import java.util.Arrays;
 public class Tests {
     public static void main(String[] args) throws Exception {
         HashTest();
+
+        TestServlet testServlet = new TestServlet();
+        testServlet.filePath = "payment-forecast-data.csv";
+        testServlet.init();
+        System.out.println(testServlet.message);
     }
 
     public static void HashTest() throws Exception {
