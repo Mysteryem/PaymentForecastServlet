@@ -1,4 +1,4 @@
-package uk.co.mysterymayhem.servletjsptest;
+package uk.co.mysterymayhem.paymentforecast;
 
 import java.io.*;
 import java.math.BigDecimal;
@@ -10,6 +10,11 @@ import java.util.*;
 
 public class DataParser {
 
+    // Replace with TIntObjectHashMap from Trove collections to maybe increase performance? (int keys instead of Integer keys)
+    // Used in validation of merchant related fields
+    static final HashMap<Integer, MerchantData> MERCHANT_ID_TO_DATA = new HashMap<>();
+    // Main results map, Date -> Map<MerchantID, Amount in £>
+    static final HashMap<SimpleDate, HashMap<Integer, BigDecimal>> DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP = new HashMap<>();
     // Constants for csv record parsing
     private static final int RECIEVED_UTC = 0;
     private static final int MERCHANT_ID = 1;
@@ -24,16 +29,11 @@ public class DataParser {
     private static final int AMOUNT = 10;
     private static final int SHA256 = 11;
     private static final int EXPECTED_NUM_FIELDS = 12;
-
-    // Replace with TIntObjectHashMap from Trove collections to maybe increase performance? (int keys instead of Integer keys)
-    // Used in validation of merchant related fields
-    static final HashMap<Integer, MerchantData> MERCHANT_ID_TO_DATA = new HashMap<>();
     // Used in validation of payer related fields
     private static final HashMap<Integer, String> PAYER_ID_TO_PUB_KEY = new HashMap<>();
     // Not very useful for multi-threading, a blocking queue of Calendar objects might work
     // Don't care about initial time of calendar
     private static final Calendar UTC_CALENDAR = GregorianCalendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ENGLISH);
-
     // Constants for date conversion
     private static final int YEAR = 0;
     private static final int MONTH = 1;
@@ -42,22 +42,25 @@ public class DataParser {
     private static final int MINUTES = 1;
     private static final int SECONDS = 2;
     private static final int PUBLIC_KEY_LENGTH = 20;
-    // Main results map, Date -> Map<MerchantID, Amount in £>
-    static final HashMap<SimpleDate, HashMap<Integer, BigDecimal>> DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP = new HashMap<>();
 
-    public static void main(String[] args) {
-        try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File(args[0])))) {
-            // First line contains descriptive headers so is skipped
+    public static void parseDataFile(String fileURI) {
+        parseDataFile(fileURI, System.err);
+    }
+
+    public static void parseDataFile(String fileURI, PrintStream parsingErrorOutput) {
+        try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File(fileURI)))) {
+            // First line contains descriptive headers, so is skipped
             lineNumberReader.readLine();
 
-            while (lineNumberReader.ready()) {
+            // Easily parallelisable via lineNumberReader.lines().parallel().forEach(...) once other code is made thread-safe
+            lineNumberReader.lines().forEach(s -> {
                 try {
-                    parseLine(lineNumberReader.readLine());
+                    parseLine(s);
                 } catch (ParseException parseException) {
                     //TODO: log some info to a file here instead of printing to console
-                    System.out.println("Failed to parse line " + lineNumberReader.getLineNumber() + ": " + parseException.getMessage());
+                    parsingErrorOutput.println("Failed to parse line " + lineNumberReader.getLineNumber() + ": " + parseException.getMessage());
                 }
-            }
+            });
         } catch (FileNotFoundException e) {
             System.err.println("Current path: " + Paths.get("").toAbsolutePath().toString());
             e.printStackTrace();
@@ -72,12 +75,14 @@ public class DataParser {
             throw new ParseException("Invalid record length, got " + split.length + ", expected " + EXPECTED_NUM_FIELDS + ". Full line:\n" + line);
         }
 
-        // Parsing/validation order is mostly arbitrary, more expensive operations you would want last
+        // Parsing/validation order is mostly arbitrary, more expensive operations you would want last, but more likely
+        // to not parse you would want earlier.
+        // Either way, most entries will parse fine, so it's not very important
 
         // Both types of date are parsable, received date is before due date and due utc and due epoch dates match
         SimpleDate paymentDate = parseTimeData(split[RECIEVED_UTC], split[DUE_UTC], split[DUE_EPOCH]);
 
-        // Each merchant id is a number and has a single corresponding merchant name and merchant public key
+        // Each merchant id is a number and has a single corresponding merchant name and a single merchant public key
         MerchantData merchantData = parseMerchantData(split[MERCHANT_ID], split[MERCHANT_NAME], split[MERCHANT_PUB_KEY]);
 
         // Each payer id is a number and has a single corresponding payer public key
@@ -122,7 +127,11 @@ public class DataParser {
                     throw new ParseException(String.format("Invalid amount (%s) for currency type %s", amount, currencyType));
                 }
             }
-            return new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal parsedAmount = new BigDecimal(amount).setScale(2, RoundingMode.HALF_UP);
+            if (parsedAmount.compareTo(BigDecimal.ZERO) < 1) {
+                throw new ParseException(String.format("Invalid amount (%s). Must be greater than zero", amount));
+            }
+            return parsedAmount;
         } catch (NumberFormatException e) {
             throw new ParseException(e);
         }

@@ -1,6 +1,6 @@
-package uk.co.mysterymayhem.servletjsptest;
+package uk.co.mysterymayhem.paymentforecast;
 
-import uk.co.mysterymayhem.servletjsptest.DataParser.ParseException;
+import uk.co.mysterymayhem.paymentforecast.DataParser.ParseException;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

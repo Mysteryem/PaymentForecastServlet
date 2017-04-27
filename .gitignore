@@ -2,3 +2,5 @@
 out/
 payment-forecast-data.csv
 servlet_jsp_test.iml
+parsing-errors.txt
+test_html_output.html

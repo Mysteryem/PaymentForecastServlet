@@ -1,4 +1,4 @@
-package uk.co.mysterymayhem.servletjsptest;
+package uk.co.mysterymayhem.paymentforecast;
 
 import java.util.Objects;
 
@@ -25,7 +25,7 @@ public class MerchantData {
             return true;
         }
         if (obj instanceof MerchantData) {
-            MerchantData other = (MerchantData)obj;
+            MerchantData other = (MerchantData) obj;
             return this.id.equals(other.id) && this.name.equals(other.name) && this.publicKey.equals(other.publicKey);
         }
         return false;
@@ -34,6 +34,7 @@ public class MerchantData {
     /**
      * Convenience method for comparisons prior to constructing a new instance. This should be a minimal timesave where
      * it is not necessary to construct a new MerchantData beforehand.
+     *
      * @param id
      * @param name
      * @param publicKey

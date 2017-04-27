@@ -1,4 +1,4 @@
-package uk.co.mysterymayhem.servletjsptest;
+package uk.co.mysterymayhem.paymentforecast;
 
 
 import java.time.Instant;
@@ -73,25 +73,19 @@ public class SimpleDate implements Comparable<SimpleDate> {
     public int compareTo(SimpleDate o) {
         if (this.year > o.year) {
             return 1;
-        }
-        else if (this.year < o.year) {
+        } else if (this.year < o.year) {
             return -1;
-        }
-        else {
+        } else {
             if (this.month > o.month) {
                 return 1;
-            }
-            else if (this.month < o.month) {
+            } else if (this.month < o.month) {
                 return -1;
-            }
-            else {
+            } else {
                 if (this.dayOfMonth > o.dayOfMonth) {
                     return 1;
-                }
-                else if (this.dayOfMonth < o.dayOfMonth) {
+                } else if (this.dayOfMonth < o.dayOfMonth) {
                     return -1;
-                }
-                else {
+                } else {
                     return 0;
                 }
             }

@@ -1,4 +1,4 @@
-package uk.co.mysterymayhem.servletjsptest;
+package uk.co.mysterymayhem.paymentforecast;
 
 import java.util.ArrayList;
 
@@ -15,6 +15,7 @@ public class HtmlTableBuilder {
 
     /**
      * Returns index of new row
+     *
      * @return
      */
     public int addRow() {
