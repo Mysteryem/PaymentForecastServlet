@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static uk.co.mysterymayhem.paymentforecast.DataParser.printTimeStampedLine;
+
 /**
  * Created by Mysteryem on 25/04/2017.
  */
@@ -27,6 +29,8 @@ public class PaymentForecastServlet extends HttpServlet {
     String filePath;
     // Visible for testing
     String parseErrorPath;
+    // Visible for testing
+    String runtimeLogPath;
     // Visible for testing
     String message;
 
@@ -73,6 +77,7 @@ public class PaymentForecastServlet extends HttpServlet {
     @Override
     public void init() throws ServletException {
         PrintStream printStream;
+        PrintStream runtimeLogStream;
         try {
             String filePathString;
             if (this.parseErrorPath == null) {
@@ -84,17 +89,20 @@ public class PaymentForecastServlet extends HttpServlet {
             // StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE and StandardOpenOption.WRITE are the defaults
             OutputStream outputStream = Files.newOutputStream(path);
             printStream = new PrintStream(outputStream);
+
+            runtimeLogStream = runtimeLogPath == null ? System.out : new PrintStream(Files.newOutputStream(Paths.get(runtimeLogPath)));
         } catch (IOException e) {
             e.printStackTrace();
             this.message = "Internal server error";
             return;
         }
-
-        DataParser.parseDataFile(this.filePath, printStream);
+        printTimeStampedLine(runtimeLogStream, "Starting reading/parsing/processing of data file");
+        DataParser.parseDataFile(this.filePath, printStream, runtimeLogStream);
 
         HashMap<SimpleDate, HashMap<Integer, BigDecimal>> dayToMerchantIdToAmountMapMap = DataParser.DAY_TO_MERCHANT_ID_TO_AMOUNT_MAP_MAP;
         TreeMap<SimpleDate, HashMap<Integer, BigDecimal>> sortedMap = new TreeMap<>();
 
+        printTimeStampedLine(runtimeLogStream, "Determining table columns");
         // Determines number of columns of the table, this could change for different periods of time that are to be displayed
         // for now, we're simply displaying all of the available data
         // TreeSet as uniqueness and sorting is required, using a HashSet and then converting it to a list/array and then
@@ -109,6 +117,7 @@ public class PaymentForecastServlet extends HttpServlet {
 
         HtmlTableBuilder builder = new HtmlTableBuilder();
 
+        printTimeStampedLine(runtimeLogStream, "Building html table");
         builder.addHeader("Date");
         knownSortedMerchantIds.forEach(i -> builder.addHeader(DataParser.MERCHANT_ID_TO_DATA.get(i).name));
 
@@ -131,6 +140,7 @@ public class PaymentForecastServlet extends HttpServlet {
         stringBuilder.append(builder.toString());
         appendHtml(stringBuilder);
         this.message = stringBuilder.toString();
+        printTimeStampedLine(runtimeLogStream, "Built html");
         //super.init();
     }
 

@@ -44,23 +44,30 @@ public class DataParser {
     private static final int PUBLIC_KEY_LENGTH = 20;
 
     public static void parseDataFile(String fileURI) {
-        parseDataFile(fileURI, System.err);
+        parseDataFile(fileURI, System.err, System.out);
     }
 
-    public static void parseDataFile(String fileURI, PrintStream parsingErrorOutput) {
+    public static void printTimeStampedLine(PrintStream stream, String text) {
+        stream.println("[@" + System.currentTimeMillis() + "] " + text);
+    }
+
+    public static void parseDataFile(String fileURI, PrintStream parsingErrorOutput, PrintStream runtimeLog) {
+        printTimeStampedLine(runtimeLog, "Opening file for reading");
         try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File(fileURI)))) {
+            printTimeStampedLine(runtimeLog, "Skipping csv headers");
             // First line contains descriptive headers, so is skipped
             lineNumberReader.readLine();
 
+            printTimeStampedLine(runtimeLog, "Reading, parsing and processing lines as encountered");
             // Easily parallelisable via lineNumberReader.lines().parallel().forEach(...) once other code is made thread-safe
             lineNumberReader.lines().forEach(s -> {
                 try {
                     parseLine(s);
                 } catch (ParseException parseException) {
-                    //TODO: log some info to a file here instead of printing to console
                     parsingErrorOutput.println("Failed to parse line " + lineNumberReader.getLineNumber() + ": " + parseException.getMessage());
                 }
             });
+            printTimeStampedLine(runtimeLog, "Finished reading/parsing/processing all lines");
         } catch (FileNotFoundException e) {
             System.err.println("Current path: " + Paths.get("").toAbsolutePath().toString());
             e.printStackTrace();

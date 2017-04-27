@@ -28,6 +28,7 @@ public class Tests {
         PaymentForecastServlet paymentForecastServlet = new PaymentForecastServlet();
         paymentForecastServlet.filePath = "payment-forecast-data.csv";
         paymentForecastServlet.parseErrorPath = "parsing-errors.txt";
+        paymentForecastServlet.runtimeLogPath = "runtime-log.log";
         paymentForecastServlet.init();
         ArrayList<String> iterableWrapper = new ArrayList<>();
         iterableWrapper.add(paymentForecastServlet.message);
