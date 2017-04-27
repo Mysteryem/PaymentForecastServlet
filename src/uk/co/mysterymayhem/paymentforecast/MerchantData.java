@@ -8,7 +8,8 @@ import java.util.Objects;
  * Created by Mysteryem on 25/04/2017.
  */
 public class MerchantData {
-    // Going to be working with Integer objects, so may as well reduce the amount of auto(un)boxing
+    // Going to be working with Integer objects, so may as well reduce the amount of auto(un)boxing by using Integers
+    // everywhere
     public final Integer id;
     public final String name;
     public final String publicKey;

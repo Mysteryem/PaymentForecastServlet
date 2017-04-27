@@ -113,7 +113,6 @@ public class PaymentForecastServlet extends HttpServlet {
             sortedMap.put(entry.getKey(), innerMap);
             knownSortedMerchantIds.addAll(innerMap.keySet());
         }
-        Integer[] sortedMerchantIds = knownSortedMerchantIds.toArray(new Integer[knownSortedMerchantIds.size()]);
 
         HtmlTableBuilder builder = new HtmlTableBuilder();
 
@@ -127,7 +126,7 @@ public class PaymentForecastServlet extends HttpServlet {
             int rowIndex = builder.addRow();
             builder.addToRow(rowIndex, key.prettyToString());
 
-            for (Integer id : sortedMerchantIds) {
+            for (Integer id : knownSortedMerchantIds) {
                 BigDecimal bigDecimal = todaysPayements.get(id);
                 if (bigDecimal == null) {
                     bigDecimal = new BigDecimal("0.00");

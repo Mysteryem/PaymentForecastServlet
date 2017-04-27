@@ -10,7 +10,6 @@ import java.util.*;
 
 public class DataParser {
 
-    // Replace with TIntObjectHashMap from Trove collections to maybe increase performance? (int keys instead of Integer keys)
     // Used in validation of merchant related fields
     static final HashMap<Integer, MerchantData> MERCHANT_ID_TO_DATA = new HashMap<>();
     // Main results map, Date -> Map<MerchantID, Amount in £>
@@ -31,7 +30,8 @@ public class DataParser {
     private static final int EXPECTED_NUM_FIELDS = 12;
     // Used in validation of payer related fields
     private static final HashMap<Integer, String> PAYER_ID_TO_PUB_KEY = new HashMap<>();
-    // Not very useful for multi-threading, a blocking queue of Calendar objects might work
+    // Not very useful for multi-threading, a blocking queue of Calendar objects might work, creating a new instance each time
+    // seems excessive.
     // Don't care about initial time of calendar
     private static final Calendar UTC_CALENDAR = GregorianCalendar.getInstance(TimeZone.getTimeZone(ZoneOffset.UTC), Locale.ENGLISH);
     // Constants for date conversion
@@ -41,16 +41,30 @@ public class DataParser {
     private static final int HOURS = 0;
     private static final int MINUTES = 1;
     private static final int SECONDS = 2;
+    // Assumed all public keys must be 20 characters long
     private static final int PUBLIC_KEY_LENGTH = 20;
 
     public static void parseDataFile(String fileURI) {
         parseDataFile(fileURI, System.err, System.out);
     }
 
+    /**
+     * General logging method
+     *
+     * @param stream
+     * @param text
+     */
     public static void printTimeStampedLine(PrintStream stream, String text) {
         stream.println("[@" + System.currentTimeMillis() + "] " + text);
     }
 
+    /**
+     * Main method for parsing of a .csv data file.
+     *
+     * @param fileURI            Path of the .csv file to open.
+     * @param parsingErrorOutput Stream to print parsing errors to.
+     * @param runtimeLog         Stream to print runtime logging to.
+     */
     public static void parseDataFile(String fileURI, PrintStream parsingErrorOutput, PrintStream runtimeLog) {
         printTimeStampedLine(runtimeLog, "Opening file for reading");
         try (LineNumberReader lineNumberReader = new LineNumberReader(new FileReader(new File(fileURI)))) {
@@ -76,6 +90,12 @@ public class DataParser {
         }
     }
 
+    /**
+     * Parse a line of text from .csv data.
+     *
+     * @param line
+     * @throws ParseException If any parsing fails.
+     */
     private static void parseLine(String line) throws ParseException {
         String[] split = line.split(",");
         if (split.length != EXPECTED_NUM_FIELDS) {
@@ -119,6 +139,17 @@ public class DataParser {
         }
     }
 
+    /**
+     * Parse the payment amount and currency.
+     * <p>
+     * Currency must be GBP.
+     * Amount must be a positive number with 2 or 0 digits after a decimal point.
+     *
+     * @param currencyType
+     * @param amount
+     * @return
+     * @throws ParseException
+     */
     private static BigDecimal parsePaymentAmount(String currencyType, String amount) throws ParseException {
         if (!currencyType.equals("GBP")) {
             throw new ParseException("Unrecognised currency type \"" + currencyType + "\"");
@@ -212,7 +243,21 @@ public class DataParser {
         return new SimpleDate(UTC_CALENDAR);
     }
 
-    // Assuming public keys are always 20 characters long
+    /**
+     * Parses and validates MerchantId, MerchantName nad MerchantPubKey.
+     * MerchantId must be an integer.
+     * MerchantPubKey must be 20 characters long.
+     * <p>
+     * Any existing MerchantData for the MerchantId must match the parsed MerchantData
+     * <p>
+     * Assumes public keys are always 20 characters long.
+     *
+     * @param merchantIDString
+     * @param merchantName
+     * @param merchantPubKey
+     * @return
+     * @throws ParseException
+     */
     private static MerchantData parseMerchantData(String merchantIDString, String merchantName, String merchantPubKey) throws ParseException {
         try {
             Integer merchantID = Integer.parseInt(merchantIDString);
@@ -238,12 +283,11 @@ public class DataParser {
     }
 
     /**
-     * Parse UTC string into a date of payment (year, month and day). Note that payments after 4pm are considered to
-     * occur on the next day.
+     * Parse a UTC string into an Instant in time.
      *
      * @param utcDate
      * @return
-     * @throws ParseException
+     * @throws ParseException If the read date format is invalid.
      */
     private static Instant parseUTCData(String utcDate) throws ParseException {
         int firstSplit = utcDate.indexOf('T');
@@ -256,40 +300,40 @@ public class DataParser {
         String[] hms = hourDaySeconds.split(":");
         UTC_CALENDAR.clear();
         try {
+            // Months are 0 indexed (jan = 0, dec = 11)
             //noinspection MagicConstant
             UTC_CALENDAR.set(Integer.parseInt(ymd[YEAR]), Integer.parseInt(ymd[MONTH]) - 1, Integer.parseInt(ymd[DAY]),
                     Integer.parseInt(hms[HOURS]), Integer.parseInt(hms[MINUTES]), Integer.parseInt(hms[SECONDS]));
-//            // If after 4pm, then payment occurs the next day
-//            if (CALENDAR.get(Calendar.HOUR_OF_DAY) >= 16) {
-//                CALENDAR.add(Calendar.DAY_OF_YEAR, 1);
-//            }
         } catch (NumberFormatException e) {
             throw new ParseException("Failed to parse UTC date \"" + utcDate + "\"", e);
         }
         return UTC_CALENDAR.toInstant();
-        //return new SimpleDate(CALENDAR);
     }
 
+    /**
+     * Parse a time in seconds since epoch into an Instant in time
+     *
+     * @param epochSeconds
+     * @return
+     * @throws ParseException If input string is not an integer.
+     */
     private static Instant parseEpochData(String epochSeconds) throws ParseException {
         try {
             int parsedSeconds = Integer.parseInt(epochSeconds);
             return Instant.ofEpochSecond(parsedSeconds);
-//            CALENDAR.clear();
-//            CALENDAR.add(Calendar.SECOND, i);
-//            // If after 4pm, then payment occurs the next day
-//            if (CALENDAR.get(Calendar.HOUR_OF_DAY) >= 16) {
-//                CALENDAR.add(Calendar.DAY_OF_YEAR, 1);
-//            }
-//            return CALENDAR.toInstant();
-            //return new SimpleDate(CALENDAR);
         } catch (NumberFormatException e) {
             throw new ParseException("Failed to parse seconds since epoch\"" + epochSeconds + "\"", e);
         }
     }
 
+    /**
+     * Validate a hash, given an entire split csv record
+     *
+     * @param splitLine
+     * @throws ParseException If parsed and calculated hashes differ.
+     */
     private static void validateHash(String[] splitLine) throws ParseException {
         byte[] preCalculatedHash = Hasher.fromPreComputedString(splitLine[SHA256]);
-//        byte[] preCalculatedHash = splitLine[SHA256].getBytes();
         byte[] calculatedHash = Hasher.hash(splitLine[MERCHANT_PUB_KEY], splitLine[PAYER_PUB_KEY], splitLine[DEBIT_PERMISSION_ID], splitLine[DUE_EPOCH], splitLine[AMOUNT]);
         if (!Arrays.equals(preCalculatedHash,
                 calculatedHash)) {
@@ -297,6 +341,9 @@ public class DataParser {
         }
     }
 
+    /**
+     * General Exception class for when parsing fails
+     */
     static class ParseException extends Exception {
         public ParseException() {
             super();
